@@ -442,7 +442,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
       <div class="err-msg">Veuillez cocher cette case pour continuer</div>
     </div>
     <div class="warn">
-      Lorsque vous cliquez sur <strong>"Enregistrer mes reponses"</strong>, vos reponses seront envoyees automatiquement a l'enqueteur, et un fichier de sauvegarde sera telecharge sur votre appareil.
+      Lorsque vous cliquez sur <strong>"Enregistrer mes reponses"</strong>, vos reponses seront envoyees automatiquement a l'enqueteur.
     </div>
   </div>
 </div>
@@ -468,7 +468,6 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
     <p id="okMsg">Vos reponses ont bien ete enregistrees.</p>
     <div id="statusSend" style="margin-bottom:16px;padding:10px 14px;border-radius:8px;font-size:13px;display:none"></div>
     <div class="modal-btns">
-      <button class="btn-sec" id="btnRedl">Telecharger une copie</button>
       <button class="btn-ok" id="btnReload">Remplir un nouveau formulaire</button>
     </div>
   </div>
@@ -895,47 +894,6 @@ function collectData() {
    TELECHARGEMENTS (JSON + CSV)
    ============================================================ */
 
-function downloadJSON(data) {
-  try {
-    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    var v = (data.ville || 'inconnu').replace(/\s/g, '_');
-    var d = new Date().toISOString().slice(0, 10);
-    a.download = 'beninfin_' + v + '_' + d + '.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(a.href); }, 5000);
-    return true;
-  } catch (e) { return false; }
-}
-
-function downloadCSV(data) {
-  // CSV directement importable par backend/scripts/import_terrain.py
-  var lines = ['date,libelle,montant,categorie,profil_metier'];
-  data.transactions.forEach(function(t) {
-    if (!t.description || !t.montant_fcfa) return;
-    var libelle = (t.description || '').replace(/"/g, '""');
-    lines.push([
-      t.date || '',
-      '"' + libelle + '"',
-      t.montant_fcfa,
-      t.categorie_key || '',
-      data.profil_metier || '',
-    ].join(','));
-  });
-  try {
-    var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    var v = (data.ville || 'inconnu').replace(/\s/g, '_');
-    var d = new Date().toISOString().slice(0, 10);
-    a.download = 'beninfin_' + v + '_' + d + '.csv';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(a.href); }, 5000);
-    return true;
-  } catch (e) { return false; }
-}
-
 /* ============================================================
    BROUILLON (auto-save)
    ============================================================ */
@@ -1063,12 +1021,12 @@ function showOk(envoye) {
       statusEl.style.background = '#E5F3EF';
       statusEl.style.color = '#084A3A';
       statusEl.style.border = '1px solid #0F6E56';
-      statusEl.innerHTML = '&#10003;&nbsp; Reponses envoyees a l\'enqueteur avec succes. Une copie (JSON + CSV) a aussi ete telechargee sur cet appareil.';
+      statusEl.innerHTML = '&#10003;&nbsp; Vos reponses ont ete envoyees a l\'enqueteur avec succes. Merci de votre participation !';
     } else {
       statusEl.style.background = '#FDF3E3';
       statusEl.style.color = '#7A4D00';
       statusEl.style.border = '1px solid #C47B1A';
-      statusEl.innerHTML = '&#9888;&nbsp; L\'envoi automatique n\'a pas fonctionne (pas de reseau ?). Vos fichiers ont ete telecharges &mdash; transmettez-les manuellement a l\'enqueteur.';
+      statusEl.innerHTML = '&#9888;&nbsp; L\'envoi n\'a pas fonctionne (probleme de reseau ?). Vos reponses ont ete sauvegardees localement &mdash; reessayez plus tard ou contactez l\'enqueteur.';
     }
   }
   $('ovOk').classList.add('show');
@@ -1087,21 +1045,16 @@ function doSubmit() {
   var data = collectData();
   lastData = data;
 
-  // 1. Sauvegarde locale
+  // 1. Sauvegarde locale (au cas ou l'envoi echoue, le brouillon reste)
   try { localStorage.setItem('beninfin_saved_' + Date.now(), JSON.stringify(data)); } catch (e) {}
-  try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
 
-  // 2. Telechargement systematique (JSON + CSV)
-  downloadJSON(data);
-  downloadCSV(data);
-
-  // 3. Verifier endpoint
+  // 2. Verifier endpoint
   if (!ENDPOINT || ENDPOINT === 'COLLER_URL_FORMSPREE_ICI') {
     showOk(false);
     return;
   }
 
-  // 4. Envoi Formspree
+  // 3. Envoi Formspree
   setSubmitState(true);
 
   // Resume textuel pour mail Formspree (lisible)
@@ -1131,20 +1084,18 @@ function doSubmit() {
   })
   .then(function(res) { return res.json(); })
   .then(function(json) {
+    var envoye = json && json.ok === true;
     setSubmitState(false);
-    showOk(json && json.ok === true);
+    if (envoye) {
+      // Envoi reussi : on peut effacer le brouillon
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    }
+    showOk(envoye);
   })
   .catch(function() {
     setSubmitState(false);
     showOk(false);
   });
-}
-
-function redownload() {
-  if (lastData) {
-    downloadJSON(lastData);
-    downloadCSV(lastData);
-  }
 }
 
 function closeError() {
@@ -1178,7 +1129,6 @@ window.addEventListener('load', function() {
   $('btnAddRow').addEventListener('click', function() { addRow(true); });
   $('btnSubmit').addEventListener('click', doSubmit);
   $('btnDraft').addEventListener('click', function() { saveDraft(false); });
-  $('btnRedl').addEventListener('click', redownload);
   $('btnReload').addEventListener('click', function() { location.reload(); });
   $('btnCloseErr').addEventListener('click', closeError);
 
