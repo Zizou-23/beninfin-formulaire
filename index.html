@@ -527,13 +527,13 @@ function addRow(focus){
   var tr=document.createElement("tr");
   tr.innerHTML="<td class='rn'>"+n+"</td>"+
     "<td><input type='date' class='tx-d'></td>"+
-    "<td><input type='text' class='tx-l' placeholder='Description exacte...' oninput='cntTx()'></td>"+
-    "<td><input type='number' class='tx-m' placeholder='0' min='0' step='100' oninput='cntTx()'></td>"+
-    "<td><select class='tx-c' onchange='cntTx()'></select></td>";
+    "<td><input type='text' class='tx-l' placeholder='Description exacte...' oninput='cntTx();prog()'></td>"+
+    "<td><input type='number' class='tx-m' placeholder='0' min='0' step='100' oninput='cntTx();prog()'></td>"+
+    "<td><select class='tx-c' onchange='cntTx();prog()'></select></td>";
   tbody.appendChild(tr);
   buildSel(tr.querySelector(".tx-c"));
   if(focus!==false) tr.querySelector(".tx-d").focus();
-  cntTx();
+  cntTx(); prog();
 }
 
 function cntTx(){
@@ -545,7 +545,7 @@ function cntTx(){
   document.getElementById("txNum").textContent=n;
   document.getElementById("stickyNum").textContent=n;
   document.getElementById("txOk").classList.toggle("show",n>=5);
-  prog();
+  /* NE PAS appeler prog() ici — cntTx est appelé par prog, ce serait une boucle infinie */
   return n;
 }
 
@@ -553,10 +553,12 @@ function prog(){
   var p=0;
   if(st.activite) p+=25;
   if(document.getElementById("commune").value) p+=15;
-  var tx=cntTx();
+  /* Lire le compteur depuis l'affichage — ne PAS appeler cntTx() ici */
+  var tx=parseInt(document.getElementById("txNum").textContent)||0;
   if(tx>=3) p+=20;
   if(tx>=5) p+=20;
-  if(document.getElementById("consentCheck").checked) p+=20;
+  var cb=document.getElementById("consentCheck");
+  if(cb&&cb.checked) p+=20;
   document.getElementById("pb").style.width=Math.min(p,100)+"%";
 }
 
@@ -650,18 +652,19 @@ function setBtn(loading){
 }
 
 function showOk(envoye){
-  var st=document.getElementById("statusSend");
-  st.style.display="block";
+  var statusEl=document.getElementById("statusSend");
+  if(!statusEl) return;
+  statusEl.style.display="block";
   if(envoye){
-    st.style.background="#E5F3EF";
-    st.style.color="#084A3A";
-    st.style.border="1px solid #0F6E56";
-    st.innerHTML="&#10003;&nbsp; Réponses envoyées à l'enquêteur avec succès. Une copie a aussi été téléchargée sur cet appareil.";
+    statusEl.style.background="#E5F3EF";
+    statusEl.style.color="#084A3A";
+    statusEl.style.border="1px solid #0F6E56";
+    statusEl.innerHTML="&#10003;&nbsp; Réponses envoyées à l'enquêteur avec succès. Une copie a aussi été téléchargée sur cet appareil.";
   } else {
-    st.style.background="#FDF3E3";
-    st.style.color="#7A4D00";
-    st.style.border="1px solid #C47B1A";
-    st.innerHTML="&#9888;&nbsp; L'envoi automatique n'a pas fonctionné (pas de réseau ?). Votre fichier a été téléchargé — transmettez-le manuellement à l'enquêteur.";
+    statusEl.style.background="#FDF3E3";
+    statusEl.style.color="#7A4D00";
+    statusEl.style.border="1px solid #C47B1A";
+    statusEl.innerHTML="&#9888;&nbsp; L'envoi automatique n'a pas fonctionné (pas de réseau ?). Votre fichier a été téléchargé — transmettez-le manuellement à l'enquêteur.";
   }
   document.getElementById("ovOk").classList.add("show");
 }
